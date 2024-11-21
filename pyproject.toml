@@ -1,0 +1,13 @@
+# https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html
+[tool.black]
+line-length = 100
+
+# https://beta.ruff.rs/docs/settings/
+[tool.ruff]
+line-length = 150
+# https://beta.ruff.rs/docs/rules/
+select = ["E", "W", "F", "UP", "PL"]
+ignore = ["F401", "PLR0913", "PLR2004", "PLR0915"]
+# Exclude a variety of commonly ignored directories.
+respect-gitignore = true
+ignore-init-module-imports = true
