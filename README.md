@@ -2,7 +2,7 @@
 The Diffusion model, which can be run by simply installing torch, helps us learn the main components of the algorithm. The code is extremely simple and readable, you can simply read the code and comments to learn everything.
 
 ## TODO
-- [ ] Add VAE to the diffusion model.
+- [x] Add VAE to the diffusion model.
 - [ ] Implement parameter configuration.
 
 ## DDPM Train
