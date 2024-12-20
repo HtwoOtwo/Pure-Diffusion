@@ -7,7 +7,7 @@ line-length = 100
 line-length = 150
 # https://beta.ruff.rs/docs/rules/
 select = ["E", "W", "F", "UP", "PL"]
-ignore = ["F401", "PLR0913", "PLR2004", "PLR0915"]
+ignore = ["F401", "PLR0913", "PLR2004", "PLR0915", "UP006", "UP035"]
 # Exclude a variety of commonly ignored directories.
 respect-gitignore = true
 ignore-init-module-imports = true

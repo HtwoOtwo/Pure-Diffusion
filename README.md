@@ -1,8 +1,18 @@
-# pure torch-based DDPM
-The DDPM model, which can be run by simply installing torch, helps us learn the main components of the algorithm. The code is extremely simple and readable, you can simply read the code and comments to achieve the effect of learning.
+# pure torch-based Diffusion
+The Diffusion model, which can be run by simply installing torch, helps us learn the main components of the algorithm. The code is extremely simple and readable, you can simply read the code and comments to learn everything.
 
-## Train
-`python train.py`
+## TODO
+- [ ] Add VAE to the diffusion model.
+- [ ] Implement parameter configuration.
 
-## Inference
-`python inference.py`
+## DDPM Train
+`python ddpm_train.py`
+
+## DDPM Inference
+`python ddpm_inference.py`
+
+## VQVAE Train
+`python vqvae_train.py`
+
+## VQVAE Inference
+`python vqvae_inference.py`

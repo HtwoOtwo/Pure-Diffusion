@@ -19,7 +19,7 @@ class DiffusionOutput:
 
 
 class DownBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, cond_channels):
+    def __init__(self, in_channels, out_channels, cond_channels=0):
         super().__init__()
         self.block = nn.Sequential(
             nn.Conv2d(in_channels + cond_channels, out_channels, kernel_size=3, padding=1),
@@ -29,10 +29,13 @@ class DownBlock(nn.Module):
         )
         self.pooling = nn.AvgPool2d(kernel_size=2, stride=2)
 
-    def forward(self, x, c):
+    def forward(self, x, c=None):
         _, _, w, h = x.size()
-        c = c.expand(-1, -1, w, h)  # Shape conditional input to match image
-        x = self.block(torch.cat([x, c], 1))  # Convolutions over image + condition
+        if c is not None:
+            c = c.expand(-1, -1, w, h)  # Shape conditional input to match image
+            x = self.block(torch.cat([x, c], 1))  # Convolutions over image + condition
+        else:
+            x = self.block(x)
         x_small = self.pooling(x)  # Downsample output for next block
         return x, x_small
 
