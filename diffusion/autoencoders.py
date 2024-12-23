@@ -9,32 +9,6 @@ from torch import nn
 from .models import DownBlock, UpBlock
 
 
-class UNet(nn.Module):
-    def __init__(self):
-        super().__init__()
-        cond_size = 0
-
-        self.conv = nn.Conv2d(1, 128, kernel_size=3, padding=1)
-        self.down = nn.ModuleList([DownBlock(128, 256, cond_size), DownBlock(256, 512, cond_size)])
-        self.mid = DownBlock(512, 512, cond_size)
-        self.up = nn.ModuleList([UpBlock(512, 256), UpBlock(256, 128)])
-        self.conv_out = nn.Conv2d(128, 1, kernel_size=1)
-
-    def forward(self, x):
-        x = self.conv(x)
-
-        outs = []
-        for block in self.down:
-            out, x = block(x)
-            outs.append(out)
-        x, _ = self.mid(x)
-        for block in self.up:
-            x = block(outs.pop(), x)
-
-        x = self.conv_out(x)
-        return x
-
-
 class VectorQuantizer(nn.Module):
     """
     Improved version over VectorQuantizer, can be used as a drop-in replacement. Mostly avoids costly matrix
@@ -55,12 +29,12 @@ class VectorQuantizer(nn.Module):
         legacy: bool = True,
     ):
         super().__init__()
-        self.n_e = n_e # NOTE the size of codebook, similar to vocabulary size
+        self.n_e = n_e  # NOTE the size of codebook, similar to vocabulary size
         self.vq_embed_dim = vq_embed_dim
         self.beta = beta
         self.legacy = legacy
 
-        self.embedding = nn.Embedding(self.n_e, self.vq_embed_dim) # NOTE codebook, can be learned
+        self.embedding = nn.Embedding(self.n_e, self.vq_embed_dim)  # NOTE codebook, can be learned
         self.embedding.weight.data.uniform_(-1.0 / self.n_e, 1.0 / self.n_e)
 
         self.remap = remap
@@ -112,7 +86,7 @@ class VectorQuantizer(nn.Module):
         # NOTE min_encoding_indices: (1998) [0, 1, 23, 255, 255, ....]
         min_encoding_indices = torch.argmin(torch.cdist(z_flattened, self.embedding.weight), dim=1)
 
-        z_q = self.embedding(min_encoding_indices).view(z.shape) # NOTE replace with the value in codebook
+        z_q = self.embedding(min_encoding_indices).view(z.shape)  # NOTE replace with the value in codebook
         perplexity = None
         min_encodings = None
 
@@ -160,14 +134,14 @@ class VectorQuantizer(nn.Module):
 class VQModel(nn.Module):
     def __init__(
         self,
-        latent_channels: int = 1,
+        latent_channels: int = 64,
         num_vq_embeddings: int = 256,
         vq_embed_dim: Optional[int] = None,
     ):
         super().__init__()
 
         # pass init params to Encoder
-        self.encoder = UNet()
+        self.encoder = nn.ModuleList([nn.Conv2d(1, 16, kernel_size=1), DownBlock(16, 32, 0), DownBlock(32, 64, 0)])
 
         vq_embed_dim = vq_embed_dim if vq_embed_dim is not None else latent_channels
 
@@ -176,11 +150,16 @@ class VQModel(nn.Module):
         self.post_quant_conv = nn.Conv2d(vq_embed_dim, latent_channels, 1)
 
         # pass init params to Decoder
-        self.decoder = UNet()
+        self.decoder = nn.ModuleList([UpBlock(64, 32, use_res=False), UpBlock(32, 16, use_res=False), nn.Conv2d(16, 1, kernel_size=1)])
 
     def encode(self, x: torch.Tensor, return_dict: bool = True) -> Union[torch.Tensor, Tuple[torch.Tensor]]:
-        h = self.encoder(x)
-        h = self.quant_conv(h)
+        # h = self.encoder(x)
+        for m in self.encoder:
+            if isinstance(m, DownBlock):
+                _, x = m(x)
+            else:
+                x = m(x)
+        h = self.quant_conv(x)
 
         if not return_dict:
             return (h,)
@@ -191,13 +170,16 @@ class VQModel(nn.Module):
         # also go through quantization layer
         quant, commit_loss, _ = self.quantize(h)
 
-        quant2 = self.post_quant_conv(quant)
-        dec = self.decoder(quant2)
+        x = self.post_quant_conv(quant)
+
+        for m in self.decoder:
+            x = m(x)
+        # dec = self.decoder(quant2)
 
         if return_loss:
-            return dec, commit_loss
+            return x, commit_loss
 
-        return dec
+        return x
 
     def forward(self, sample: torch.Tensor, return_loss: bool = True) -> Tuple[torch.Tensor, ...]:
         r"""

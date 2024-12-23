@@ -19,12 +19,13 @@ def main():
     predictor = NoisePredictor(schedule, lambda x: torch.clamp(x, -1, 1))
 
     # prepare model
-    unet = UNet(time_size=32, digit_size=32)
+    # unet = UNet(input_channel=1, time_dim=32, digit_dim=32)
+    unet = UNet(input_channel=64, time_dim=32, digit_dim=32) # the latent dim is 64
     unet = CFGuidance(unet, 32, guidance=2.0)
     model = DDPModule(unet, schedule, predictor)
     encoder = nn.Embedding(10, 32)
 
-    epochs = 10
+    epochs = 25
 
     device = "cuda:0"
     encoder.to(device)
@@ -50,7 +51,7 @@ def main():
     for e in range(epochs):
         for sample in (pbar := tqdm(train_dataloader)):
             x, c = sample
-
+            x = x.to(device)
             if WITH_VAE:
                 latents = vqvae.encode(x)
             else:

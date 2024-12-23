@@ -25,10 +25,17 @@ def main():
     predictor = NoisePredictor(schedule, lambda x: torch.clamp(x, -1, 1))
     device = "cuda:0"
 
-    unet = UNet(time_size=32, digit_size=32)
+    if WITH_VAE:
+        vqvae = VQModel().to(device)
+        vqvae.load_state_dict(torch.load("vae.pt", map_location=device))
+        vqvae.eval()
+        unet = UNet(input_channel=64, time_dim=32, digit_dim=32) # digit_dim is the text dim
+    else:
+        unet = UNet(input_channel=1, time_dim=32, digit_dim=32)
+
     unet = CFGuidance(unet, 32, guidance=2.0)
     model = DDPModule(unet, schedule, predictor).to(device)
-    encoder = nn.Embedding(10, 32).to(device)
+    encoder = nn.Embedding(10, 32).to(device) # 10： 0-9
 
     model.load_state_dict(torch.load("model.pt", map_location=device))
     encoder.load_state_dict(torch.load("encoder.pt", map_location=device))
@@ -36,16 +43,17 @@ def main():
     model.eval()
     encoder.eval()
 
-    if WITH_VAE:
-        vqvae = VQModel().to(device)
-        vqvae.load_state_dict(torch.load("vae.pt", map_location=device))
-        vqvae.eval()
-
     c = fashion_encoder("boot", 9)
     noise = torch.randn(size=(9,1,32,32)).to(device)
 
+    if WITH_VAE:
+        noise_latents = vqvae.encode(noise) # to latent space
+    else:
+        noise_latents = noise # the latent is exactly the noise
+
     with torch.no_grad():
-        img_latents = model(noise, conditional_inputs=c)
+        img_latents = model(noise_latents, conditional_inputs=c)
+
         if WITH_VAE:
             imgs = vqvae.decode(img_latents, return_loss=False)
         else:

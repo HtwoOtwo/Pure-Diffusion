@@ -42,34 +42,47 @@ class DownBlock(nn.Module):
 
 # Upscaling blocks on unet
 class UpBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, use_res=True):
         super().__init__()
-        self.block = nn.Sequential(
-            nn.Conv2d(2 * in_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(),
-        )
+        if use_res:
+            self.block = nn.Sequential(
+                nn.Conv2d(2 * in_channels, out_channels, kernel_size=3, padding=1),
+                nn.ReLU(),
+                nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+                nn.ReLU(),
+            )
+        else:
+            self.block = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+                nn.ReLU(),
+                nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+                nn.ReLU(),
+            )
         self.upsample = nn.Upsample(scale_factor=2)
+        self.use_res = use_res
 
-    def forward(self, x, x_small):
-        x_big = self.upsample(x_small)  # Upscale input back towards original size
-        x = torch.cat((x_big, x), dim=1)  # Join previous block with accross block
+    def forward(self, x_small, x=None):
+        if self.use_res:
+            assert x is not None
+            x_big = self.upsample(x_small)  # Upscale input back towards original size
+            x = torch.cat((x_big, x), dim=1)  # Join previous block with accross block
+        else:
+            x = self.upsample(x_small)
         x = self.block(x)  # Convolutions over image
         return x
 
 
 class UNet(nn.Module):
-    def __init__(self, time_size=32, digit_size=32, steps=1000):
+    def __init__(self, input_channel=1, time_dim=32, digit_dim=32, steps=1000):
         super().__init__()
-        cond_size = time_size + digit_size
+        cond_dim = time_dim + digit_dim
 
-        self.conv = nn.Conv2d(1, 128, kernel_size=3, padding=1)
-        self.time_proj = nn.Embedding(steps, time_size)
-        self.var = nn.Conv2d(128, 1, kernel_size=3, padding=1)
-        self.pred = nn.Conv2d(128, 1, kernel_size=3, padding=1)
-        self.down = nn.ModuleList([DownBlock(128, 256, cond_size), DownBlock(256, 512, cond_size)])
-        self.mid = DownBlock(512, 512, cond_size)
+        self.conv = nn.Conv2d(input_channel, 128, kernel_size=3, padding=1)
+        self.time_proj = nn.Embedding(steps, time_dim)
+        self.var = nn.Conv2d(128, input_channel, kernel_size=3, padding=1)
+        self.pred = nn.Conv2d(128, input_channel, kernel_size=3, padding=1)
+        self.down = nn.ModuleList([DownBlock(128, 256, cond_dim), DownBlock(256, 512, cond_dim)])
+        self.mid = DownBlock(512, 512, cond_dim)
         self.up = nn.ModuleList([UpBlock(512, 256), UpBlock(256, 128)])
 
     def forward(self, x, t, conditional_inputs):
@@ -86,7 +99,7 @@ class UNet(nn.Module):
             outs.append(out)
         x, _ = self.mid(x, cond)
         for block in self.up:
-            x = block(outs.pop(), x)
+            x = block(x, outs.pop())
 
         v = self.var(x)
         p = self.pred(x)
