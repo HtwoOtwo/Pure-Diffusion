@@ -2,13 +2,16 @@ import torch
 import torchvision
 from torch import nn
 
+from diffusion.autoencoders import VQModel
 from diffusion.models import CFGuidance, DDPModule, UNet
 from diffusion.predictor import NoisePredictor
 from diffusion.schedule import DiscreteGaussianSchedule, linear_beta_schedule
 
+WITH_VAE = True
 
 def main():
     def fashion_encoder(name, num=1):
+        # tokenizer
         fashion_dict = {"t-shirt": 0, "pants": 1, "sweater": 2, "dress": 3, "coat": 4,
                         "sandal": 5, "shirt": 6, "sneaker": 7, "purse": 8, "boot": 9}
         idx = torch.as_tensor([fashion_dict[name] for _ in range(num)]).to(device)
@@ -33,11 +36,20 @@ def main():
     model.eval()
     encoder.eval()
 
+    if WITH_VAE:
+        vqvae = VQModel().to(device)
+        vqvae.load_state_dict(torch.load("vae.pt", map_location=device))
+        vqvae.eval()
+
     c = fashion_encoder("boot", 9)
     noise = torch.randn(size=(9,1,32,32)).to(device)
 
     with torch.no_grad():
-        imgs = model(noise, conditional_inputs=c)
+        img_latents = model(noise, conditional_inputs=c)
+        if WITH_VAE:
+            imgs = vqvae.decode(img_latents, return_loss=False)
+        else:
+            imgs = img_latents # the image is exactly the diffuson output
 
     img_grid = torchvision.utils.make_grid(imgs, 3)
     img = torchvision.transforms.functional.to_pil_image((img_grid + 1) / 2)

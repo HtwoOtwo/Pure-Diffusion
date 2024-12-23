@@ -197,7 +197,7 @@ class VQModel(nn.Module):
         if return_loss:
             return dec, commit_loss
 
-        return dec, commit_loss
+        return dec
 
     def forward(self, sample: torch.Tensor, return_loss: bool = True) -> Tuple[torch.Tensor, ...]:
         r"""

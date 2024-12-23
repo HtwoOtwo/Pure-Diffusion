@@ -12,13 +12,13 @@ from diffusion.predictor import NoisePredictor
 from diffusion.schedule import DiscreteGaussianSchedule, linear_beta_schedule
 from diffusion.transformers import RandomDiffusionSteps
 
+WITH_VAE = True
 
 def main():
     schedule = DiscreteGaussianSchedule(linear_beta_schedule(1000))
     predictor = NoisePredictor(schedule, lambda x: torch.clamp(x, -1, 1))
 
     # prepare model
-    vqvae = VQModel()
     unet = UNet(time_size=32, digit_size=32)
     unet = CFGuidance(unet, 32, guidance=2.0)
     model = DDPModule(unet, schedule, predictor)
@@ -29,7 +29,10 @@ def main():
     device = "cuda:0"
     encoder.to(device)
     model.to(device)
-    vqvae.load_state_dict(torch.load("vae.pt", map_location=device))
+
+    if WITH_VAE:
+        vqvae = VQModel().to(device)
+        vqvae.load_state_dict(torch.load("vae.pt", map_location=device))
 
     # prepare data
     diffusion_transform = RandomDiffusionSteps(schedule, batched=True)
@@ -47,7 +50,11 @@ def main():
     for e in range(epochs):
         for sample in (pbar := tqdm(train_dataloader)):
             x, c = sample
-            latents = vqvae.encode(x)
+
+            if WITH_VAE:
+                latents = vqvae.encode(x)
+            else:
+                latents = x # the image itself
 
             noisy_latents = diffusion_transform({"x": latents}) # add noise
             x0, xt, noise, t, c = (

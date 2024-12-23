@@ -4,6 +4,8 @@ The Diffusion model, which can be run by simply installing torch, helps us learn
 ## TODO
 - [x] Add VAE to the diffusion model.
 - [ ] Implement parameter configuration.
+- [ ] Implement diffusion with DiT.
+- [ ] Implement VAR model.
 
 ## DDPM Train
 `python ddpm_train.py`
